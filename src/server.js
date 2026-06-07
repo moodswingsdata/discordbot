@@ -20,6 +20,12 @@ class JsonResponse extends Response {
   }
 }
 
+function toMarkdown(cardText) {
+    if (cardText) {
+        return cardText.replace("<strong>", "**").replace("</strong>", "**");
+    }
+}
+
 const fuzzOptions = {
     scorer: token_set_ratio,
     limit: 1,
@@ -27,6 +33,7 @@ const fuzzOptions = {
 };
 import cardData from './cards.json';
 const cardNames = cardData.map((card) => card.name);
+const cardTexts = new Map(cardData.map((card) => [card.name, toMarkdown(card.rules_text)]));
 
 function pickAnyCard() {
     return {
@@ -86,8 +93,8 @@ router.post('/', async (request, env) => {
         const searchResult = cardSearch.length > 0 ? fuzzyMatchCard(cardSearch) : pickAnyCard();
         const reply = searchResult.match
             ? (searchResult.random
-                ? `${userName} just wants to feel something. Here you go: ${searchResult.cardName}.`
-                : `"${cardSearch}" matched: ${searchResult.cardName}.`)
+                ? `${userName} just wants to feel something. How about...\n\n**${searchResult.cardName}**\n\n${cardTexts.get(searchResult.cardName)}`
+                : `"${cardSearch}" found a match.\n\n**${searchResult.cardName}**\n\n${cardTexts.get(searchResult.cardName)}`)
             : `Nothing matched "${cardSearch}".`;
         return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
