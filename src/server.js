@@ -55,7 +55,11 @@ router.post('/', async (request, env) => {
     switch (interaction.data.name.toLowerCase()) {
       case FEEL_COMMAND.name.toLowerCase(): {
         const deferral = await deferResponse(interaction);
-        const cardText = "Card texts not installed yet."
+        // I read somewhere that DMs put this on .user but channel messages put it on .member.user
+        const user = interaction.user ?? interaction.member.user;
+        const userName = user.global_name ?? user.username;
+        const cardName = interaction.data.options ? interaction.data.options[0].value : "";
+        const cardText = cardName.length > 0 ? `${userName} asked for: "${cardName}".` : `Choosing a card for ${userName}.`
         return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
