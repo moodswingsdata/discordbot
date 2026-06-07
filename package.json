@@ -1,0 +1,32 @@
+{
+  "name": "feelingsbot",
+  "version": "1.0.0",
+  "description": "A Discord bot for Mood Swings",
+  "homepage": "https://github.com/moodswingsdata/discordbot#readme",
+  "bugs": {
+    "url": "https://github.com/moodswingsdata/discordbot/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moodswingsdata/discordbot.git"
+  },
+  "license": "MIT",
+  "author": "",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "wrangler dev",
+    "tunnel": "ssh -R 80:localhost:3000 serveo.net",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "register": "node src/register.js",
+    "publish": "wrangler deploy"
+  },
+  "dependencies": {
+    "discord-interactions": "^4.4.0",
+    "itty-router": "^5.0.23"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2",
+    "wrangler": "^4.98.0"
+  }
+}
