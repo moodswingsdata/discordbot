@@ -33,7 +33,15 @@ const fuzzOptions = {
 };
 import cardData from './cards.json';
 const cardNames = cardData.map((card) => card.name);
-const cardTexts = new Map(cardData.map((card) => [card.name, toMarkdown(card.rules_text)]));
+const cardIndex = new Map(cardData.map((card) => [card.name, card]));
+
+function formatCard(cardName) {
+    const data = cardIndex.get(cardName);
+    if (!data) { return "Something went wrong, unable to locate card."; }
+    const color = data.color.length > 0 ? data.color.join(", ") : "Colorless";
+    const diceStr = data.secondary_dice ? `${data.dice}/${data.secondary_dice}` : data.dice;
+    return `**${cardName}** (${color}, ${diceStr})\n\n${toMarkdown(data.rules_text)}`
+}
 
 function pickAnyCard() {
     return {
@@ -93,8 +101,8 @@ router.post('/', async (request, env) => {
         const searchResult = cardSearch.length > 0 ? fuzzyMatchCard(cardSearch) : pickAnyCard();
         const reply = searchResult.match
             ? (searchResult.random
-                ? `${userName} just wants to feel something. How about...\n\n**${searchResult.cardName}**\n\n${cardTexts.get(searchResult.cardName)}`
-                : `"${cardSearch}" found a match.\n\n**${searchResult.cardName}**\n\n${cardTexts.get(searchResult.cardName)}`)
+                ? `${userName} just wants to feel something. How about...\n\n${formatCard(searchResult.cardName)}`
+                : `"${cardSearch}" found a match.\n\n{formatCard(searchResult.cardName)}`)
             : `Nothing matched "${cardSearch}".`;
         return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
