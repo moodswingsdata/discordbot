@@ -16,7 +16,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "wrangler dev",
-    "tunnel": "ssh -R 80:localhost:3000 serveo.net",
+    "tunnel": "ssh -R 80:localhost:8787 serveo.net",
     "test": "echo \"Error: no test specified\" && exit 1",
     "register": "node src/register.js",
     "publish": "wrangler deploy"
