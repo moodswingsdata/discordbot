@@ -65,6 +65,8 @@ function fuzzyMatchCard(input) {
         : { match: false };
 }
 
+const apologies = ["Terribly sorry", "My bad", "Oops", "Begging your pardon", "D'oh", "Dangit"];
+
 const router = AutoRouter();
 
 /**
@@ -118,12 +120,17 @@ router.post('/', async (request, env) => {
         });
       }
       case SEARCH_COMMAND.name.toLowerCase(): {
-        const applicationId = env.DISCORD_APP_ID;
+        const query = interaction.data.options ? interaction.data.options[0].value : "";
+        const params = new URLSearchParams();
+        if (query) params.set("q", query);
+
+        const searchUrl = new URL("https://moodswingsdata.github.io/feelings/");
+        searchUrl.hash = params.toString();
+
         return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
-            content: "Search is not online yet.",
-            flags: InteractionResponseFlags.EPHEMERAL,
+            content: `${apologies[Math.floor(Math.random() * apologies.length)]}, search is not online yet. View it on the web instead:\n\n${searchUrl}.`,
           },
         });
       }
