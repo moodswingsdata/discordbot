@@ -54,6 +54,7 @@ router.post('/', async (request, env) => {
     // Most user commands will come as `APPLICATION_COMMAND`.
     switch (interaction.data.name.toLowerCase()) {
       case FEEL_COMMAND.name.toLowerCase(): {
+        const deferral = await deferResponse(interaction);
         const cardText = "Card texts not installed yet."
         return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -81,6 +82,20 @@ router.post('/', async (request, env) => {
   return new JsonResponse({ error: 'Unknown Type' }, { status: 400 });
 });
 router.all('*', () => new Response('Not Found.', { status: 404 }));
+
+async function deferResponse(interaction) {
+    const url = `https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`;
+    return fetch(url, {
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        method: 'POST',
+        body: JSON.stringify({
+            "type": InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+            "data": "Thinking...",
+        }),
+    });
+}
 
 async function verifyDiscordRequest(request, env) {
   const signature = request.headers.get('x-signature-ed25519');
