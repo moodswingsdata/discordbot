@@ -102,7 +102,7 @@ router.post('/', async (request, env) => {
         const reply = searchResult.match
             ? (searchResult.random
                 ? `${userName} just wants to feel something. How about...\n\n${formatCard(searchResult.cardName)}`
-                : `"${cardSearch}" found a match.\n\n{formatCard(searchResult.cardName)}`)
+                : `"${cardSearch}" found a match.\n\n${formatCard(searchResult.cardName)}`)
             : `Nothing matched "${cardSearch}".`;
         return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
