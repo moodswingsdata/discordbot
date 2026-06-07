@@ -20,9 +20,15 @@ class JsonResponse extends Response {
   }
 }
 
+// NOTE: this is NOT a general-purpose HTML unescaper. It depends on the quality
+// of the data passed in from cards.json. For example, if there's a mismatched
+// <strong> tag somewhere, this will happily give mismatched `**`s.
 function toMarkdown(cardText) {
     if (cardText) {
-        return cardText.replace("<strong>", "**").replace("</strong>", "**");
+        return cardText
+            .replaceAll("<strong>", "**").replaceAll("</strong>", "**")
+            .replaceAll("<br/>", "\n")
+            .replaceAll("<em>", "_").replaceAll("</em>", "_");
     }
 }
 
