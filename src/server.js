@@ -25,19 +25,20 @@ const fuzzOptions = {
     limit: 1,
     cutoff: 50,
 };
-const choices = ["Happiness", "Sadness", "Anger"];
+import cardData from './cards.json';
+const cardNames = cardData.map((card) => card.name);
 
 function pickAnyCard() {
     return {
         match: true,
         random: true,
-        cardName: choices[Math.floor(Math.random() * choices.length)],
+        cardName: cardNames[Math.floor(Math.random() * cardNames.length)],
     };
 }
 
 function fuzzyMatchCard(input) {
-    const result = extract(input, choices, fuzzOptions);
-    console.log(result);
+    const result = extract(input, cardNames, fuzzOptions);
+    // console.log(result);
     return (result.length > 0)
         ? { cardName: result[0][0], match: true, random: false }
         : { match: false };
@@ -86,7 +87,7 @@ router.post('/', async (request, env) => {
         const reply = searchResult.match
             ? (searchResult.random
                 ? `${userName} just wants to feel something. Here you go: ${searchResult.cardName}.`
-                : `Closest match: "${searchResult.cardName}".`)
+                : `"${cardSearch}" matched: ${searchResult.cardName}.`)
             : `Nothing matched "${cardSearch}".`;
         return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
