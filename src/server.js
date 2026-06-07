@@ -6,6 +6,7 @@ import {
 } from 'discord-interactions';
 import { FEEL_COMMAND, SEARCH_COMMAND } from './commands.js';
 import { InteractionResponseFlags } from 'discord-interactions';
+import { extract, token_set_ratio } from 'fuzzball/ultra_lite';
 
 class JsonResponse extends Response {
   constructor(body, init) {
@@ -17,6 +18,29 @@ class JsonResponse extends Response {
     };
     super(jsonBody, init);
   }
+}
+
+const fuzzOptions = {
+    scorer: token_set_ratio,
+    limit: 1,
+    cutoff: 50,
+};
+const choices = ["Happiness", "Sadness", "Anger"];
+
+function pickAnyCard() {
+    return {
+        match: true,
+        random: true,
+        cardName: choices[Math.floor(Math.random() * choices.length)],
+    };
+}
+
+function fuzzyMatchCard(input) {
+    const result = extract(input, choices, fuzzOptions);
+    console.log(result);
+    return (result.length > 0)
+        ? { cardName: result[0][0], match: true, random: false }
+        : { match: false };
 }
 
 const router = AutoRouter();
@@ -57,12 +81,17 @@ router.post('/', async (request, env) => {
         // I read somewhere that DMs put this on .user but channel messages put it on .member.user
         const user = interaction.user ?? interaction.member.user;
         const userName = user.global_name ?? user.username;
-        const cardName = interaction.data.options ? interaction.data.options[0].value : "";
-        const cardText = cardName.length > 0 ? `${userName} asked for: "${cardName}".` : `Choosing a card for ${userName}.`
+        const cardSearch = interaction.data.options ? interaction.data.options[0].value : "";
+        const searchResult = cardSearch.length > 0 ? fuzzyMatchCard(cardSearch) : pickAnyCard();
+        const reply = searchResult.match
+            ? (searchResult.random
+                ? `${userName} just wants to feel something. Here you go: ${searchResult.cardName}.`
+                : `Closest match: "${searchResult.cardName}".`)
+            : `Nothing matched "${cardSearch}".`;
         return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
-            content: cardText,
+            content: reply,
           },
         });
       }
