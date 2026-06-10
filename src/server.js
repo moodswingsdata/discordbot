@@ -49,6 +49,32 @@ function formatCard(cardName) {
     return `**${cardName}** (${color}, ${diceStr})\n\n${toMarkdown(data.rules_text)}`
 }
 
+const COLOR_ACCENTS = {
+    'White': 0xFFF9EA,
+    'Blue':  0x1E72B8,
+    'Black': 0x3D1F5C,
+    'Red':   0xCC2200,
+    'Green': 0x1C7A3D,
+};
+const COLORLESS_ACCENT = 0x9B9B9B;
+const GOLD_ACCENT = 0xD4AF37;
+
+const COMPONENT_TYPE_CONTAINER = 17;
+const COMPONENT_TYPE_TEXT_DISPLAY = 10;
+const IS_COMPONENTS_V2 = 1 << 15;
+
+function cardAccentColor(cardName) {
+    const data = cardIndex.get(cardName);
+    if (!data) {
+        console.error(`cardAccentColor: no card data found for "${cardName}"`);
+        return COLORLESS_ACCENT;
+    }
+    const colors = data.color;
+    if (colors.length === 0) return COLORLESS_ACCENT;
+    if (colors.length > 1) return GOLD_ACCENT;
+    return COLOR_ACCENTS[colors[0]] ?? COLORLESS_ACCENT;
+}
+
 function pickAnyCard() {
     return {
         match: true,
@@ -107,15 +133,30 @@ router.post('/', async (request, env) => {
         const userName = user.global_name ?? user.username;
         const cardSearch = interaction.data.options ? interaction.data.options[0].value : "";
         const searchResult = cardSearch.length > 0 ? fuzzyMatchCard(cardSearch) : pickAnyCard();
-        const reply = searchResult.match
-            ? (searchResult.random
-                ? `${userName} just wants to feel something. How about...\n\n${formatCard(searchResult.cardName)}`
-                : `"${cardSearch}" found a match.\n\n${formatCard(searchResult.cardName)}`)
-            : `Nothing matched "${cardSearch}".`;
+        if (!searchResult.match) {
+          return new JsonResponse({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              content: `Nothing matched "${cardSearch}".`,
+            },
+          });
+        }
+        const introText = searchResult.random
+            ? `${userName} just wants to feel something. How about...`
+            : `"${cardSearch}" found a match.`;
+        const cardText = formatCard(searchResult.cardName);
         return new JsonResponse({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
-            content: reply,
+            flags: IS_COMPONENTS_V2,
+            components: [{
+              type: COMPONENT_TYPE_CONTAINER,
+              accent_color: cardAccentColor(searchResult.cardName),
+              components: [
+                { type: COMPONENT_TYPE_TEXT_DISPLAY, content: introText },
+                { type: COMPONENT_TYPE_TEXT_DISPLAY, content: cardText },
+              ],
+            }],
           },
         });
       }
