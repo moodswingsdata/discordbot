@@ -13,7 +13,7 @@ class_name = "DiscordGateway"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["DiscordGateway"]
+new_sqlite_classes = ["DiscordGateway"]
 
 # Required secret — set once after deploying:
 #   npx wrangler secret put DISCORD_TOKEN --config wrangler-gateway.toml
