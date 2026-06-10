@@ -19,12 +19,14 @@
     "tunnel": "ssh -R 80:localhost:8787 serveo.net",
     "test": "echo \"Error: no test specified\" && exit 1",
     "register": "node src/register.js",
+    "gateway": "node src/gateway.js",
     "publish": "wrangler deploy"
   },
   "dependencies": {
     "discord-interactions": "^4.4.0",
     "fuzzball": "^2.2.6",
-    "itty-router": "^5.0.23"
+    "itty-router": "^5.0.23",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",
