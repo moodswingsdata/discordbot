@@ -52,7 +52,9 @@ function safeGatewayUrl(url) {
     try {
         const parsed = new URL(url);
         if (parsed.protocol === 'wss:' && ALLOWED_GATEWAY_HOST.test(parsed.hostname)) {
-            return url;
+            // Reconstruct from parsed parts so the returned value is not tainted
+            // by the original user-provided string.
+            return `wss://${parsed.host}/?v=10&encoding=json`;
         }
     } catch {
         // invalid URL
@@ -61,7 +63,16 @@ function safeGatewayUrl(url) {
     return GATEWAY_URL;
 }
 
+// Discord snowflake IDs are unsigned 64-bit integers represented as decimal strings.
+const SNOWFLAKE_PATTERN = /^\d{1,20}$/;
+
 async function postCardToChannel(channelId, cardSearch) {
+    // Validate that channelId is a Discord snowflake before using it in the URL.
+    if (!SNOWFLAKE_PATTERN.test(channelId)) {
+        console.warn(`Ignoring invalid channel_id: ${channelId}`);
+        return;
+    }
+
     const searchResult = fuzzyMatchCard(cardSearch);
     if (!searchResult.match) {
         return;
