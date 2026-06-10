@@ -82,7 +82,10 @@ export class DiscordGateway {
     }
 
     async connect(url) {
-        const response = await fetch(url, {
+        // Workers fetch() requires https:// even for WebSocket upgrades;
+        // the Upgrade header handles the protocol switch.
+        const fetchUrl = url.replace(/^wss:\/\//, 'https://');
+        const response = await fetch(fetchUrl, {
             headers: { Upgrade: 'websocket' },
         });
         if (response.status !== 101) {
