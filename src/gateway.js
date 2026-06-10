@@ -27,8 +27,9 @@ if (!DISCORD_TOKEN) {
 // Gateway intents:
 //   GUILDS (1 << 0) = 1
 //   GUILD_MESSAGES (1 << 9) = 512
-//   MESSAGE_CONTENT (1 << 12) = 4096
-const GATEWAY_INTENTS = 1 | 512 | 4096;
+//   DIRECT_MESSAGES (1 << 12) = 4096
+//   MESSAGE_CONTENT (1 << 15) = 32_768
+const GATEWAY_INTENTS = 1 | 512 | 4096 | 32_768;
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
@@ -176,6 +177,7 @@ function connect(url) {
                     if (d.author?.bot) break;
 
                     const content = d.content || '';
+                    if (content.length == 0) { console.log("empty content; make sure privileged intent 'Message Content' is on"); }
                     const channelId = d.channel_id;
                     const matches = [...content.matchAll(DOUBLE_BRACKET_PATTERN)];
                     const lookups = matches
