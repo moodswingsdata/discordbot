@@ -20,7 +20,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "register": "node src/register.js",
     "gateway": "node src/gateway.js",
-    "publish": "wrangler deploy"
+    "publish": "wrangler deploy",
+    "deploy:gateway": "wrangler deploy --config wrangler-gateway.toml"
   },
   "dependencies": {
     "discord-interactions": "^4.4.0",

@@ -33,3 +33,22 @@ Go to the General Information tab in your Discord app. Copy the URL from the `tu
 Note that free Serveo tunnels die after a while, so you'll probably do this several times per session.
 
 The gateway bot (`npm run gateway`) connects directly to Discord and does not need the tunnel. It reads the same `.env` file and requires `DISCORD_TOKEN` to be set.
+
+# Deploying to Cloudflare Workers
+
+**Slash-command handler** — deploy the existing Worker with `npm run publish`.
+
+**Gateway bot** (`[[card name]]` in messages) — a separate Worker + Durable Object defined in `wrangler-gateway.toml`:
+
+```
+npm run deploy:gateway
+npx wrangler secret put DISCORD_TOKEN --config wrangler-gateway.toml
+```
+
+The Durable Object keeps a persistent outbound WebSocket connection to the Discord gateway. A built-in cron trigger (every 5 minutes) reconnects the object if it is evicted while idle. Session state (sequence number, session ID) is persisted to Durable Object Storage so Discord sessions resume across evictions.
+
+> **Note on IP restrictions:** Discord restricts gateway connections from some
+> data-center IP ranges, which can include Cloudflare's shared egress pool.
+> If the first connect attempt returns a 401, run the gateway bot on a
+> non-datacenter host instead (e.g. a VPS or your local machine) using
+> `npm run gateway`.
