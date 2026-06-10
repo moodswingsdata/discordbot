@@ -23,9 +23,12 @@ import { fuzzyMatchCard, buildCardResponseData } from './cards.js';
 // Gateway intents: GUILDS | GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT
 const GATEWAY_INTENTS = 1 | 512 | 4096 | 32_768;
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
-const ALLOWED_GATEWAY_HOST = /^([a-z0-9-]+\.)*discord\.gg$/;
+const ALLOWED_GATEWAY_HOST = /^([a-z0-9]+(-[a-z0-9]+)*\.)*discord\.gg$/;
 const HEARTBEAT_MIN_MS = 5_000;
 const HEARTBEAT_MAX_MS = 60_000;
+// Discord's documented default; used when storage has no recorded interval yet.
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 41_250;
+const RECONNECT_DELAY_MS = 5_000;
 const DOUBLE_BRACKET_PATTERN = /\[\[([^\]]+)\]\]/g;
 const SNOWFLAKE_PATTERN = /^\d{1,20}$/;
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
@@ -101,8 +104,8 @@ export class DiscordGateway {
             console.log(`WebSocket closed: ${event.code} ${event.reason ?? ''}`);
             this.ws = null;
             if (event.code !== 1000) {
-                // Schedule a reconnect via alarm (5 s delay).
-                this.state.storage.setAlarm(Date.now() + 5_000).catch(console.error);
+                // Schedule a reconnect via alarm.
+                this.state.storage.setAlarm(Date.now() + RECONNECT_DELAY_MS).catch(console.error);
             }
         });
 
@@ -178,7 +181,7 @@ export class DiscordGateway {
                     this.state.storage.delete('lastSequence'),
                     this.state.storage.put('pendingIdentify', true),
                 ]);
-                await this.state.storage.setAlarm(Date.now() + 5_000);
+                await this.state.storage.setAlarm(Date.now() + RECONNECT_DELAY_MS);
                 break;
             }
 
@@ -231,7 +234,7 @@ export class DiscordGateway {
         // Regular heartbeat — send and reschedule.
         const lastSequence = await this.state.storage.get('lastSequence');
         this.ws.send(JSON.stringify({ op: 1, d: lastSequence ?? null }));
-        const intervalMs = (await this.state.storage.get('heartbeatIntervalMs')) ?? 41_250;
+        const intervalMs = (await this.state.storage.get('heartbeatIntervalMs')) ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
         await this.state.storage.setAlarm(Date.now() + intervalMs);
     }
 

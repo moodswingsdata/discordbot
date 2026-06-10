@@ -36,7 +36,7 @@ const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
 
 // Allowed hostname pattern for gateway resume URLs to prevent open redirects.
 // Matches discord.gg and any subdomain (e.g. gateway.discord.gg, us-west-1.gateway.discord.gg).
-const ALLOWED_GATEWAY_HOST = /^([a-z0-9-]+\.)*discord\.gg$/;
+const ALLOWED_GATEWAY_HOST = /^([a-z0-9]+(-[a-z0-9]+)*\.)*discord\.gg$/;
 
 // Discord heartbeat interval bounds (ms): clamp to [5s, 60s] for safety.
 const HEARTBEAT_MIN_MS = 5_000;
