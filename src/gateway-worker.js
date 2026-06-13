@@ -77,8 +77,14 @@ export class DiscordGateway {
         if (this.ws && this.ws.readyState === 1 /* OPEN */) {
             return;
         }
-        const resumeGatewayUrl = await this.state.storage.get('resumeGatewayUrl');
-        await this.connect(resumeGatewayUrl ?? GATEWAY_URL);
+        try {
+            const resumeGatewayUrl = await this.state.storage.get('resumeGatewayUrl');
+            await this.connect(resumeGatewayUrl ?? GATEWAY_URL);
+        } catch (err) {
+            console.error('ensureConnected failed, scheduling alarm retry:', err);
+            // Guarantee the alarm chain is alive so we retry later.
+            await this.state.storage.setAlarm(Date.now() + RECONNECT_DELAY_MS);
+        }
     }
 
     async connect(url) {
@@ -215,30 +221,40 @@ export class DiscordGateway {
     }
 
     async alarm() {
-        // Alarm may be for a pending re-identify (after invalid session).
-        const pendingIdentify = await this.state.storage.get('pendingIdentify');
-        if (pendingIdentify) {
-            await this.state.storage.delete('pendingIdentify');
-            if (this.ws && this.ws.readyState === 1 /* OPEN */) {
-                this.identify();
-            } else {
-                await this.connect(GATEWAY_URL);
+        try {
+            // Alarm may be for a pending re-identify (after invalid session).
+            const pendingIdentify = await this.state.storage.get('pendingIdentify');
+            if (pendingIdentify) {
+                await this.state.storage.delete('pendingIdentify');
+                if (this.ws && this.ws.readyState === 1 /* OPEN */) {
+                    this.identify();
+                    // Discord won't send another HELLO on this connection, so
+                    // we must restart the heartbeat alarm chain ourselves.
+                    const intervalMs = (await this.state.storage.get('heartbeatIntervalMs')) ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
+                    await this.state.storage.setAlarm(Date.now() + intervalMs);
+                } else {
+                    await this.connect(GATEWAY_URL);
+                }
+                return;
             }
-            return;
-        }
 
-        // Reconnect if the socket is gone (e.g. after DO eviction or unexpected close).
-        if (!this.ws || this.ws.readyState !== 1 /* OPEN */) {
-            const resumeGatewayUrl = await this.state.storage.get('resumeGatewayUrl');
-            await this.connect(resumeGatewayUrl ?? GATEWAY_URL);
-            return;
-        }
+            // Reconnect if the socket is gone (e.g. after DO eviction or unexpected close).
+            if (!this.ws || this.ws.readyState !== 1 /* OPEN */) {
+                const resumeGatewayUrl = await this.state.storage.get('resumeGatewayUrl');
+                await this.connect(resumeGatewayUrl ?? GATEWAY_URL);
+                return;
+            }
 
-        // Regular heartbeat — send and reschedule.
-        const lastSequence = await this.state.storage.get('lastSequence');
-        this.ws.send(JSON.stringify({ op: 1, d: lastSequence ?? null }));
-        const intervalMs = (await this.state.storage.get('heartbeatIntervalMs')) ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
-        await this.state.storage.setAlarm(Date.now() + intervalMs);
+            // Regular heartbeat — send and reschedule.
+            const lastSequence = await this.state.storage.get('lastSequence');
+            this.ws.send(JSON.stringify({ op: 1, d: lastSequence ?? null }));
+            const intervalMs = (await this.state.storage.get('heartbeatIntervalMs')) ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
+            await this.state.storage.setAlarm(Date.now() + intervalMs);
+        } catch (err) {
+            console.error('Alarm handler error, scheduling retry:', err);
+            // Always ensure the alarm chain continues so the DO doesn't go dormant.
+            await this.state.storage.setAlarm(Date.now() + RECONNECT_DELAY_MS);
+        }
     }
 
     async postCardToChannel(channelId, cardSearch) {
@@ -247,7 +263,20 @@ export class DiscordGateway {
             return;
         }
         const searchResult = fuzzyMatchCard(cardSearch);
-        if (!searchResult.match) return;
+        if (!searchResult.match) {
+            await fetch(
+                `${DISCORD_API_BASE}/channels/${channelId}/messages`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bot ${this.env.DISCORD_TOKEN}`,
+                    },
+                    body: JSON.stringify({ content: `No match found for "${cardSearch}".` }),
+                },
+            );
+            return;
+        }
 
         const response = await fetch(
             `${DISCORD_API_BASE}/channels/${channelId}/messages`,
@@ -269,6 +298,7 @@ export class DiscordGateway {
 }
 
 // Worker entry point: HTTP hits and cron trigger both call ensureConnected().
+// They also act as a safety net — if the alarm chain broke, this re-establishes it.
 export default {
     async fetch(_request, env) {
         const id = env.DISCORD_GATEWAY.idFromName('singleton');

@@ -15,5 +15,9 @@ class_name = "DiscordGateway"
 tag = "v1"
 new_sqlite_classes = ["DiscordGateway"]
 
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 # Required secret — set once after deploying:
 #   npx wrangler secret put DISCORD_TOKEN --config wrangler-gateway.toml

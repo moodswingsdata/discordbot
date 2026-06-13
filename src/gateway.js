@@ -76,6 +76,15 @@ async function postCardToChannel(channelId, cardSearch) {
 
     const searchResult = fuzzyMatchCard(cardSearch);
     if (!searchResult.match) {
+        const data = { content: `No match found for "${cardSearch}".` };
+        await fetch(`${DISCORD_API_BASE}/channels/${channelId}/messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bot ${DISCORD_TOKEN}`,
+            },
+            body: JSON.stringify(data),
+        });
         return;
     }
     const introText = `"${cardSearch}" found a match.`;
