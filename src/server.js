@@ -125,7 +125,7 @@ router.post('/', async (request, env) => {
             return `• **${card.name}** (${color}, ${diceStr})`;
           });
 
-          let content = lines.join('\n');
+          let content = `Search: \`${query}\`\n` + lines.join('\n');
           if (results.length > MAX_RESULTS) {
             content += `\n\n_…and ${results.length - MAX_RESULTS} more result${results.length - MAX_RESULTS !== 1 ? 's' : ''}._`;
           }
