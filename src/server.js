@@ -11,6 +11,13 @@ import {
   pickAnyCard,
   buildCardResponseData,
 } from './cards.js';
+import { parseQuery } from './parser.js';
+import { initSearch, executeSearch } from './search.js';
+import cardsData from './data/cards.json' with { type: 'json' };
+import printingsData from './data/printings.json' with { type: 'json' };
+import editionsData from './data/editions.json' with { type: 'json' };
+
+initSearch(cardsData, printingsData, editionsData);
 
 class JsonResponse extends Response {
   constructor(body, init) {
@@ -23,8 +30,6 @@ class JsonResponse extends Response {
     super(jsonBody, init);
   }
 }
-
-const apologies = ["Terribly sorry", "My bad", "Oops", "Begging your pardon", "D'oh", "Dangit"];
 
 const router = AutoRouter();
 
@@ -84,18 +89,67 @@ router.post('/', async (request, env) => {
       }
       case SEARCH_COMMAND.name.toLowerCase(): {
         const query = interaction.data.options ? interaction.data.options[0].value : "";
-        const params = new URLSearchParams();
-        if (query) params.set("q", query);
+        if (!query) {
+          return new JsonResponse({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              content: 'Please provide a search query.',
+            },
+          });
+        }
 
-        const searchUrl = new URL("https://moodswingsdata.github.io/feelings/");
-        searchUrl.hash = params.toString();
+        try {
+          const { ast, errors: parseErrors } = parseQuery(query);
+          const { results, directives, errors: searchErrors } = executeSearch(ast);
+          const allErrors = [...parseErrors, ...searchErrors];
 
-        return new JsonResponse({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            content: `${apologies[Math.floor(Math.random() * apologies.length)]}, search is not online yet. View it on the web instead:\n\n${searchUrl}.`,
-          },
-        });
+          if (results.length === 0) {
+            const errorNote = allErrors.length > 0
+              ? `\n⚠️ ${allErrors.map(e => e.message).join('; ')}`
+              : '';
+            return new JsonResponse({
+              type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+              data: {
+                content: `No results for \`${query}\`.${errorNote}`,
+              },
+            });
+          }
+
+          const MAX_RESULTS = 10;
+          const shown = results.slice(0, MAX_RESULTS);
+          const lines = shown.map(({ card }) => {
+            const color = card.color.length > 0 ? card.color.join(', ') : 'Colorless';
+            const diceStr = card.dice
+              ? (card.secondary_dice ? `${card.dice}/${card.secondary_dice}` : card.dice)
+              : 'No dice';
+            return `• **${card.name}** (${color}, ${diceStr})`;
+          });
+
+          let content = lines.join('\n');
+          if (results.length > MAX_RESULTS) {
+            content += `\n\n_…and ${results.length - MAX_RESULTS} more result${results.length - MAX_RESULTS !== 1 ? 's' : ''}._`;
+          }
+
+          const searchUrl = new URL("https://moodswingsdata.github.io/feelings/");
+          searchUrl.hash = `q=${encodeURIComponent(query)}`;
+          content += `\n[View full results on the web](${searchUrl})`;
+
+          if (allErrors.length > 0) {
+            content += `\n⚠️ ${allErrors.map(e => e.message).join('; ')}`;
+          }
+
+          return new JsonResponse({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: { content },
+          });
+        } catch (err) {
+          return new JsonResponse({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              content: `Search error: ${err.message}`,
+            },
+          });
+        }
       }
       default:
         return new JsonResponse({ error: 'Unknown Type' }, { status: 400 });

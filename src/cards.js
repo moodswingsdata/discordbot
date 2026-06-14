@@ -1,5 +1,5 @@
 import { extract, token_set_ratio } from 'fuzzball/ultra_lite';
-import cardData from './cards.json' with { type: 'json' };
+import cardData from './data/cards.json' with { type: 'json' };
 
 export const cardNames = cardData.map((card) => card.name);
 export const cardIndex = new Map(cardData.map((card) => [card.name, card]));
@@ -26,7 +26,9 @@ export function formatCard(cardName) {
     const data = cardIndex.get(cardName);
     if (!data) { return "Something went wrong, unable to locate card."; }
     const color = data.color.length > 0 ? data.color.join(", ") : "Colorless";
-    const diceStr = data.secondary_dice ? `${data.dice}/${data.secondary_dice}` : data.dice;
+    const diceStr = data.dice
+        ? (data.secondary_dice ? `${data.dice}/${data.secondary_dice}` : data.dice)
+        : 'No dice';
     return `**${cardName}** (${color}, ${diceStr})\n\n${toMarkdown(data.rules_text) ?? "_(Vanilla, no rules text)_"}`
 }
 
