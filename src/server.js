@@ -125,14 +125,18 @@ router.post('/', async (request, env) => {
             return `• **${card.name}** (${color}, ${diceStr})`;
           });
 
-          let content = `Search: \`${query}\`\n` + lines.join('\n');
+          let content = `Search: \`${query}\`\n\n` + lines.join('\n');
           if (results.length > MAX_RESULTS) {
             content += `\n\n_…and ${results.length - MAX_RESULTS} more result${results.length - MAX_RESULTS !== 1 ? 's' : ''}._`;
           }
 
           const searchUrl = new URL("https://moodswingsdata.github.io/feelings/");
           searchUrl.hash = `q=${encodeURIComponent(query)}`;
-          content += `\n[View full results on the web](${searchUrl})`;
+          if (results.length > MAX_RESULTS) {
+            content += `\n[View full results on the web](${searchUrl})`;
+          } else {
+            content += `\n[View on the web](${searchUrl})`;
+          }
 
           if (allErrors.length > 0) {
             content += `\n⚠️ ${allErrors.map(e => e.message).join('; ')}`;
