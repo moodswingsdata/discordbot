@@ -119,9 +119,9 @@ router.post('/', async (request, env) => {
           const shown = results.slice(0, MAX_RESULTS);
           const lines = shown.map(({ card }) => {
             const color = card.color.length > 0 ? card.color.join(', ') : 'Colorless';
-            const diceStr = card.secondary_dice
-              ? `${card.dice}/${card.secondary_dice}`
-              : card.dice;
+            const diceStr = card.dice
+              ? (card.secondary_dice ? `${card.dice}/${card.secondary_dice}` : card.dice)
+              : 'No dice';
             return `• **${card.name}** (${color}, ${diceStr})`;
           });
 

@@ -26,7 +26,9 @@ export function formatCard(cardName) {
     const data = cardIndex.get(cardName);
     if (!data) { return "Something went wrong, unable to locate card."; }
     const color = data.color.length > 0 ? data.color.join(", ") : "Colorless";
-    const diceStr = data.secondary_dice ? `${data.dice}/${data.secondary_dice}` : data.dice;
+    const diceStr = data.dice
+        ? (data.secondary_dice ? `${data.dice}/${data.secondary_dice}` : data.dice)
+        : 'No dice';
     return `**${cardName}** (${color}, ${diceStr})\n\n${toMarkdown(data.rules_text) ?? "_(Vanilla, no rules text)_"}`
 }
 
