@@ -1,5 +1,5 @@
 import { extract, token_set_ratio } from 'fuzzball/ultra_lite';
-import cardData from './cards.json' with { type: 'json' };
+import cardData from './data/cards.json' with { type: 'json' };
 
 export const cardNames = cardData.map((card) => card.name);
 export const cardIndex = new Map(cardData.map((card) => [card.name, card]));
