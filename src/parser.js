@@ -88,8 +88,14 @@ const KEYWORD_MAP = {
   ddval: "secondary_dice_value",
   rules: "rules_text",
   t: "rules_text",
-  rulings: "rulings_text",
-  rul: "rulings_text",
+  notes: "notes",
+  note: "notes",
+  rulings: "notes",
+  rul: "notes",
+  timing: "timing",
+  tm: "timing",
+  errata: "errata",
+  err: "errata",
   frame: "frame",
   fr: "frame",
   reminder: "reminder_icon",
@@ -105,6 +111,11 @@ const KEYWORD_MAP = {
   tr: "treatment",
   artist: "artist",
   a: "artist",
+  headliner: "is_headliner",
+  hl: "is_headliner",
+  printedrules: "printed_rules_text",
+  printed: "printed_rules_text",
+  pt: "printed_rules_text",
   sort: "sort",
   as: "as",
 };
@@ -118,6 +129,8 @@ const PRINTING_FIELDS = new Set([
   "set",
   "treatment",
   "artist",
+  "is_headliner",
+  "printed_rules_text",
 ]);
 
 const NUMERIC_FIELDS = new Set([
@@ -300,12 +313,13 @@ function visitKeyedFragment(node, negated) {
   if (!field) {
     return {
       type: "fragment",
-      field: "name",
-      operator: ":",
-      value: rawKeyword,
-      valueType: "string",
+      field: null,
+      operator,
+      value,
+      valueType,
       negated,
-      error: `Unknown keyword "${rawKeyword}"`,
+      invalid: true,
+      rawKeyword,
     };
   }
 
@@ -362,16 +376,279 @@ export function parseQuery(input) {
 
   const ast = buildAST(cst);
 
-  // Collect any fragment-level errors
-  for (const group of ast.groups) {
-    for (const frag of group.fragments) {
-      if (frag.error) {
-        errors.push({ message: frag.error });
-      }
-    }
-  }
-
   return { ast, errors };
 }
 
-export { KEYWORD_MAP, PRINTING_FIELDS, NUMERIC_FIELDS, DIRECTIVE_FIELDS };
+const FIELD_LABELS = {
+  name: "name",
+  id: "ID",
+  color: "color",
+  dice: "dice",
+  dice_value: "dice value",
+  secondary_dice: "secondary dice",
+  secondary_dice_value: "secondary dice value",
+  rules_text: "rules text",
+  notes: "notes",
+  timing: "timing",
+  errata: "errata",
+  frame: "frame",
+  reminder_icon: "reminder icon",
+  rarity: "rarity",
+  dice_color: "dice color",
+  collector_number: "collector number",
+  set: "set",
+  treatment: "treatment",
+  artist: "artist",
+  is_headliner: "headliner",
+  printed_rules_text: "printed rules text",
+};
+
+const AS_LABELS = {
+  cards: "cards",
+  printings: "printings",
+  text: "text",
+  textprintings: "text printings",
+};
+const DEFAULT_AS_VALUE = "cards";
+
+const COLOR_LABELS = {
+  w: "white",
+  u: "blue",
+  b: "black",
+  r: "red",
+  g: "green",
+};
+
+const RARITY_ORDER = { common: 0, uncommon: 1, rare: 2, "mythic rare": 3 };
+const RARITY_NAMES = Object.keys(RARITY_ORDER);
+
+// Fields whose values are free text (quoted in summaries, "contains" matching).
+const TEXT_FIELDS = new Set([
+  "name",
+  "rules_text",
+  "notes",
+  "printed_rules_text",
+]);
+
+// Fields interpreted as booleans (presence/absence) in queries.
+const BOOLEAN_FIELDS = new Set(["is_headliner", "errata"]);
+
+const TRUE_VALUES = new Set(["", "true", "yes", "y", "1", "t"]);
+const FALSE_VALUES = new Set(["false", "no", "n", "0", "f"]);
+
+/**
+ * Interpret a query value as a boolean. An empty value means "true" (present).
+ * Returns true, false, or null when the value isn't a recognized boolean.
+ */
+function parseBooleanValue(value) {
+  const lower = (value || "").toLowerCase();
+  if (TRUE_VALUES.has(lower)) return true;
+  if (FALSE_VALUES.has(lower)) return false;
+  return null;
+}
+
+function describeBoolean(field, value, valueType, negated) {
+  const label = formatFieldLabel(field);
+  const bool = parseBooleanValue(value);
+  // For errata, a non-boolean value is treated as a text search of the note.
+  if (bool === null) {
+    const formattedValue = `"${value}"`;
+    return negated
+      ? `${label} note does not contain ${formattedValue}`
+      : `${label} note contains ${formattedValue}`;
+  }
+  const positive = negated ? !bool : bool;
+  if (field === "errata") {
+    return positive ? "has errata" : "has no errata";
+  }
+  return positive ? `is a ${label}` : `is not a ${label}`;
+}
+
+const RARITY_ALIASES = {
+  c: "common",
+  common: "common",
+  u: "uncommon",
+  uncommon: "uncommon",
+  r: "rare",
+  rare: "rare",
+  m: "mythic rare",
+  my: "mythic rare",
+  mythic: "mythic rare",
+  "mythic rare": "mythic rare",
+};
+
+function normalizeColorLabel(value) {
+  const lowerValue = value.toLowerCase();
+  if (lowerValue === "none" || lowerValue === "colorless") return "colorless";
+  if (lowerValue.length > 0) {
+    const colors = [];
+    for (const ch of lowerValue) {
+      if (!COLOR_LABELS[ch]) return lowerValue;
+      colors.push(COLOR_LABELS[ch]);
+    }
+    return colors.join(" and ");
+  }
+  return lowerValue;
+}
+
+function normalizeRarityLabel(value) {
+  const lowerValue = value.toLowerCase();
+  if (RARITY_ALIASES[lowerValue]) return RARITY_ALIASES[lowerValue];
+  const label = RARITY_NAMES.find((candidate) =>
+    candidate.startsWith(lowerValue)
+  );
+  if (label) return label;
+  return lowerValue;
+}
+
+function formatValue(field, value, valueType) {
+  if (valueType === "regex") return `/${value}/`;
+  if (field === "color") return normalizeColorLabel(value);
+  if (field === "rarity") return normalizeRarityLabel(value);
+  if (TEXT_FIELDS.has(field)) {
+    return `"${value}"`;
+  }
+  return value.toLowerCase();
+}
+
+function formatFieldLabel(field) {
+  return FIELD_LABELS[field] || field.replace(/_/g, " ");
+}
+
+function formatSortValue(value) {
+  const descending = value.startsWith("-");
+  const rawField = descending ? value.slice(1) : value;
+  const resolvedField = KEYWORD_MAP[rawField.toLowerCase()] || rawField;
+  const label = formatFieldLabel(resolvedField);
+  return descending ? `${label} descending` : label;
+}
+
+function describeDirective(fragment) {
+  if (fragment.field === "as") {
+    const rawValue = fragment.value;
+    const value = rawValue && rawValue.length > 0
+      ? rawValue.toLowerCase()
+      : DEFAULT_AS_VALUE;
+    const label = AS_LABELS[value] || value;
+    return `show results as ${label}`;
+  }
+  if (fragment.field === "sort") {
+    if (!fragment.value) return "sort results";
+    return `sort by ${formatSortValue(fragment.value)}`;
+  }
+  return null;
+}
+
+function describeOperator(field, operator, value, valueType, negated) {
+  const formattedValue = formatValue(field, value, valueType);
+  const textField = TEXT_FIELDS.has(field) || field === "artist" || field === "timing";
+
+  if (valueType === "regex") {
+    return negated ? `does not match ${formattedValue}` : `matches ${formattedValue}`;
+  }
+
+  if (operator === ">") {
+    return negated ? `is not greater than ${formattedValue}` : `is greater than ${formattedValue}`;
+  }
+  if (operator === "<") {
+    return negated ? `is not less than ${formattedValue}` : `is less than ${formattedValue}`;
+  }
+  if (operator === ">=") {
+    return negated ? `is not ${formattedValue} or greater` : `is ${formattedValue} or greater`;
+  }
+  if (operator === "<=") {
+    return negated ? `is not ${formattedValue} or less` : `is ${formattedValue} or less`;
+  }
+  if (operator === "=") {
+    return negated ? `is not ${formattedValue}` : `is ${formattedValue}`;
+  }
+  if (textField) {
+    return negated ? `does not contain ${formattedValue}` : `contains ${formattedValue}`;
+  }
+  return negated ? `is not ${formattedValue}` : `is ${formattedValue}`;
+}
+
+function describeFragment(fragment) {
+  if (fragment.invalid || !fragment.field) {
+    return null;
+  }
+  if (DIRECTIVE_FIELDS.has(fragment.field)) {
+    return describeDirective(fragment);
+  }
+  // Boolean fields produce a complete clause (e.g. "is a headliner", "has errata").
+  if (BOOLEAN_FIELDS.has(fragment.field)) {
+    return describeBoolean(fragment.field, fragment.value, fragment.valueType, fragment.negated);
+  }
+  const label = formatFieldLabel(fragment.field);
+  return `${label} ${describeOperator(fragment.field, fragment.operator, fragment.value, fragment.valueType, fragment.negated)}`;
+}
+
+function formatConjunctiveList(values) {
+  if (values.length === 0) return "";
+  if (values.length === 1) return values[0];
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
+}
+
+function formatInvalidKeywords(invalidKeywords) {
+  const keywords = invalidKeywords.map((keyword) => `'${keyword}'`);
+  if (keywords.length === 1) {
+    return `${keywords[0]} is not a valid search term`;
+  }
+  return `${formatConjunctiveList(keywords)} are not valid search terms`;
+}
+
+function capitalizeFirst(text) {
+  if (!text) return text;
+  return text[0].toUpperCase() + text.slice(1);
+}
+
+export function summarizeQuery(ast) {
+  if (!ast || !ast.groups) return "";
+
+  const invalidKeywords = [];
+  const groupDescriptions = [];
+  const directiveDescriptions = [];
+
+  for (const group of ast.groups) {
+    const fragmentDescriptions = [];
+    for (const fragment of group.fragments) {
+      if (fragment.invalid && fragment.rawKeyword) {
+        invalidKeywords.push(fragment.rawKeyword);
+        continue;
+      }
+      if (DIRECTIVE_FIELDS.has(fragment.field)) {
+        const description = describeFragment(fragment);
+        if (description) {
+          directiveDescriptions.push(description);
+        }
+        continue;
+      }
+      const description = describeFragment(fragment);
+      if (description) {
+        fragmentDescriptions.push(description);
+      }
+    }
+    if (fragmentDescriptions.length > 0) {
+      groupDescriptions.push(formatConjunctiveList(fragmentDescriptions));
+    }
+  }
+
+  const baseDescription = groupDescriptions.join(" or ");
+  const validParts = [];
+  if (groupDescriptions.length > 0) validParts.push(baseDescription);
+  validParts.push(...directiveDescriptions);
+  const validDescription = capitalizeFirst(formatConjunctiveList(validParts));
+  const invalidDescription = invalidKeywords.length > 0
+    ? `(${formatInvalidKeywords(invalidKeywords)})`
+    : "";
+
+  if (!validDescription) {
+    if (!invalidDescription) return "";
+    return `All terms ignored ${invalidDescription}`;
+  }
+
+  return invalidDescription ? `${validDescription} ${invalidDescription}` : validDescription;
+}
+
+export { KEYWORD_MAP, PRINTING_FIELDS, NUMERIC_FIELDS, DIRECTIVE_FIELDS, RARITY_ALIASES, RARITY_NAMES, RARITY_ORDER, normalizeRarityLabel, parseBooleanValue };
